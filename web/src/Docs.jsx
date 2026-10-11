@@ -2,8 +2,8 @@ import React,{useState} from 'react';
 import {Link,useSearchParams} from 'react-router-dom';
 import {Search,BookOpen,Printer} from 'lucide-react';
 import {Logo,Footer} from './ui';
-import {manuals} from './manuals';
-import {ManualContent} from './Manuals';
+import { manuals } from "./manuals.js";
+import { ManualContent } from "./Manuals.jsx";
 import './manuals.css';
 export function Docs(){
  const [params,setParams]=useSearchParams(),[query,setQuery]=useState('');

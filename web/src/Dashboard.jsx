@@ -1,4 +1,4 @@
-import { TabManual } from "./Manuals";
+import { TabManual } from "./Manuals.jsx";
 import React, { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
