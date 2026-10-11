@@ -1,0 +1,38 @@
+# Dependencies and build output
+node_modules/
+web/dist/
+dist/
+.pio/
+.vscode/
+.idea/
+# Private configuration: allow only explicit sample templates
+.env
+.env.*
+!.env.example
+.device.env
+.device.env.*
+!.device.env.example
+secrets.h
+secrets.*
+!secrets.example.h
+*.pem
+*.key
+*.p12
+*.pfx
+# Local state, exports and backups
+.upgrade-backups/
+*.dump
+*.backup
+*.sql.gz
+pgdata/
+data/
+backups/
+*.log
+# QA artifacts and operating-system files
+docs/screenshots/
+test-results/
+playwright-report/
+coverage/
+.DS_Store
+Thumbs.db
+*.zip

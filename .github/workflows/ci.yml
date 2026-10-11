@@ -1,0 +1,71 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run check:release
+      - run: npm test
+      - run: npm run build
+      - run: npm run docs:manual && git diff --exit-code -- docs/USER_MANUAL.md
+      - if: matrix.node == '24'
+        run: npx playwright install --with-deps chromium --only-shell
+      - if: matrix.node == '24'
+        run: node tests/m4-browser-check.mjs && node tests/m5-browser-check.mjs && node tests/manuals-browser-check.mjs
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: docker build -t open-iot:ci .
+  firmware:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: pipx install platformio==6.1.18
+      - run: cp firmware/esp32/include/secrets.example.h firmware/esp32/include/secrets.h
+      - run: platformio run --project-dir firmware/esp32
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run setup
+      - run: docker compose up -d --wait postgres
+      - run: npm run migrate
+      - run: npm run migrate
+      - if: always()
+        run: docker compose down
