@@ -22,3 +22,27 @@ Limitations:
 - Hardware behavior is not newly tested for this packaging/documentation release. Browser commands use the simulator.
 - GitHub workflows have not executed on the user's repository because this project has not been pushed or published. Check the Actions tab after first push.
 - Single-instance LAN starter only. No load testing, external penetration test, internet deployment review or safety certification is claimed.
+
+
+## Optional voice backend candidate
+
+Based on GitHub commit `4358fb3`. All 20 Node integration/security tests passed,
+including the new OAuth and voice test. The Vite production build and release
+hygiene check also passed. Voice tests cover consent Origin binding, optional
+S256 PKCE, single-use authorization codes, client/provider isolation, mapping
+ownership and types, command ACKs, duplicate request IDs, unacknowledged expiry,
+Alexa discovery/state responses, and password-change revocation.
+
+Database tests use the existing serialized PGlite test adapter; this is not a
+PostgreSQL concurrency/load test. Existing MQTT regression tests pass, but no
+live Google/Alexa developer accounts, real cloud tunnel, or physical ESP32 were
+used for this voice integration validation. Provider certification, public
+security review, and production load testing remain outstanding.
+
+## Google Assistant guide and OAuth browser regression (2026-10-12)
+
+- All 20 Node tests, production frontend build and release hygiene passed again.
+- Chromium native-form test preserved Origin and reached a controlled callback endpoint; this is not a live Google account-linking test.
+- Guide commands were checked against OAuth provisioning, voice mapping and authentication handlers.
+- The maintainer reported successful Google Home linking after the browser fix; other installations still require their own end-to-end tests.
+- Hosted GitHub Actions results are separate from these local checks; review the pull request checks before merging.

@@ -23,7 +23,7 @@ This is a small-installation, trusted-LAN starter. It is not an audited internet
 | Sensor rules | Above/below thresholds, reset margin, cooldown, pause and history |
 | Manuals | Contextual “How to use” on every dashboard tab and a searchable full manual |
 
-**Not implemented:** Google/Alexa, mobile native app, OTA updates, email/password recovery, MFA, tenant sharing, Redis/TimescaleDB, high-availability deployment or a physical relay driver. The ESP32 sample controls an LED and publishes simulated temperature.
+**Not implemented:** public Google/Alexa certification and proactive state reporting, mobile native app, OTA updates, email/password recovery, MFA, tenant sharing, Redis/TimescaleDB, high-availability deployment or a physical relay driver. The ESP32 sample controls an LED and publishes simulated temperature.
 
 ## Quick start — no hardware needed
 
@@ -181,3 +181,15 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md). Bug reports should include reproduction
 ## License
 
 [MIT](LICENSE). Third-party dependencies retain their own licenses. This project is independent of Blynk and Sinric Pro and makes no affiliation claim.
+
+## Optional Google Home and Alexa backend
+
+The voice-control branch adds opt-in device mappings, OAuth account linking,
+Google SYNC/QUERY/EXECUTE, and Alexa Discovery/PowerController/ReportState through
+a small AWS Lambda adapter. It reuses the existing MQTT command/ACK flow.
+Start with the **[step-by-step Google Assistant guide](docs/GOOGLE_ASSISTANT_SETUP.md)** for fresh installation, Google console fields, device mapping, phone linking, voice tests and troubleshooting.
+
+See [the voice-control backend guide](docs/VOICE_CONTROL.md) for migration 005,
+HTTPS tunnel setup, developer-console configuration, testing and current limits.
+Voice is disabled by default. Public provider certification and proactive state
+reporting are not included in this backend increment.

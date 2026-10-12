@@ -1,3 +1,4 @@
+import { installVoice } from "./voice/install.js";
 import { installRoutineRoutes } from "./routines.js";
 import { installFeatureRoutes } from "./features.js";
 import express from "express";
@@ -34,6 +35,7 @@ export async function createApp({
   bcryptRounds = 12,
   disableLimits = false,
   staticDir = resolve("web/dist"),
+  voice = null,
 }) {
   if (!Buffer.isBuffer(encryptionKey) || encryptionKey.length !== 32)
     throw Error("TOKEN_ENCRYPTION_KEY must decode to 32 bytes.");
@@ -469,6 +471,7 @@ export async function createApp({
       lastSeenAt: device.last_seen_at,
     });
   });
+  if (voice) installVoice(app, { db, tx, origin, limit, authenticate, ...voice });
   installPinRoutes(app, { db, tx, authenticate, limit });
   installFeatureRoutes(app, { db, tx, authenticate, limit });
   installRoutineRoutes(app, { db, tx, authenticate, limit });

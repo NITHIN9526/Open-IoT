@@ -19,6 +19,7 @@ const app = await createApp({
   origin,
   production: process.env.NODE_ENV === "production",
   trustProxy: process.env.TRUST_PROXY || false,
+  voice: process.env.VOICE_ENABLED === "true" ? { bridgeSecret: process.env.ALEXA_BRIDGE_SECRET } : null,
 });
 const mqtt =
   process.env.MQTT_ENABLED === "true"
