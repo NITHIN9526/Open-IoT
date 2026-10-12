@@ -109,6 +109,74 @@ export function installPinRoutes(app, { db, tx, authenticate, limit }) {
     );
     res.json({ pin, samples: rows.reverse() });
   });
+  // Match dashboard/routine lock order before taking the device lock.
+  async function editLock(cx, req) {
+    await cx.query("SELECT id FROM users WHERE id=$1 FOR UPDATE", [req.user.id]);
+    await cx.query("SELECT user_id FROM dashboards WHERE user_id=$1 FOR UPDATE", [req.user.id]);
+    return owned(cx, req);
+  }
+  async function requireUnused(cx, id, pin) {
+    const { rows } = await cx.query(`
+      SELECT 'schedule' AS kind,name FROM automations WHERE device_id=$1 AND pin=$2
+      UNION ALL SELECT 'scene',name FROM scenes WHERE actions @> $3::jsonb
+      UNION ALL SELECT 'sensor rule',name FROM sensor_rules
+        WHERE (source_device=$1 AND source_pin=$2) OR actions @> $3::jsonb`,
+      [id, pin, JSON.stringify([{deviceId:id,pin}])]);
+    if (rows.length) throw fail(409, 'Edit or remove these references first (including paused items): ' +
+      rows.map(x => `${x.kind} "${x.name}"`).join(', ') + '.');
+  }
+  async function clearPinBindings(cx, uid, id, pin) {
+    const removed = await cx.query("DELETE FROM dashboard_widgets WHERE device_id=$1 AND pin=$2 RETURNING id", [id,pin]);
+    if (removed.rows.length) await cx.query("UPDATE dashboards SET version=version+1,updated_at=now() WHERE user_id=$1", [uid]);
+    await cx.query("DELETE FROM voice_devices WHERE device_id=$1 AND (power_pin=$2 OR brightness_pin=$2)", [id,pin]);
+    await cx.query("UPDATE device_commands SET status='cancelled' WHERE device_id=$1 AND pin=$2 AND status='pending'", [id,pin]);
+  }
+  app.put("/api/devices/:id/pins/:pin", authenticate, async (req,res) => {
+    const oldPin = pinName.parse(req.params.pin);
+    const {confirmReset, ...body} = z.object({confirmReset:z.boolean().default(false)}).passthrough().parse(req.body);
+    const p = pinSchema.parse(body);
+    await tx(async cx => {
+      const d = await editLock(cx,req);
+      const {rows:[old]} = await cx.query("SELECT * FROM device_pins WHERE device_id=$1 AND pin=$2", [d.id,oldPin]);
+      if (!old) throw fail(404,"Virtual pin not found.");
+      const reset = p.pin!==oldPin || p.dataType!==old.data_type || p.direction!==old.direction || p.min!==old.min_value || p.max!==old.max_value;
+      if (p.pin!==oldPin && (await cx.query("SELECT pin FROM device_pins WHERE device_id=$1 AND pin=$2",[d.id,p.pin])).rows.length)
+        throw fail(409,"This virtual pin already exists.");
+      if (reset) {
+        if (!confirmReset) throw fail(400,"Confirm the pin configuration reset before saving.");
+        await requireUnused(cx,d.id,oldPin);
+        await clearPinBindings(cx,req.user.id,d.id,oldPin);
+        // Remove old state/history so it cannot be interpreted using a different schema.
+        await cx.query("DELETE FROM telemetry_samples WHERE device_id=$1 AND pin=$2",[d.id,oldPin]);
+        if (p.pin!==oldPin) {
+          await cx.query("DELETE FROM device_pins WHERE device_id=$1 AND pin=$2",[d.id,oldPin]);
+          await cx.query(`INSERT INTO device_pins(device_id,pin,label,data_type,direction,unit,min_value,max_value)
+            VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,[d.id,p.pin,p.label,p.dataType,p.direction,p.unit,p.min,p.max]);
+        } else {
+          await cx.query(`UPDATE device_pins SET label=$3,data_type=$4,direction=$5,unit=$6,min_value=$7,max_value=$8,value=NULL,reported_at=NULL
+            WHERE device_id=$1 AND pin=$2`,[d.id,p.pin,p.label,p.dataType,p.direction,p.unit,p.min,p.max]);
+        }
+      } else {
+        await cx.query("UPDATE device_pins SET label=$3,unit=$4 WHERE device_id=$1 AND pin=$2",[d.id,oldPin,p.label,p.unit]);
+      }
+    });
+    events.emit("state",req.params.id);
+    res.json({ok:true});
+  });
+  app.delete("/api/devices/:id/pins/:pin", authenticate, async (req,res) => {
+    const pin = pinName.parse(req.params.pin);
+    z.object({confirm:z.literal(true)}).strict().parse(req.body);
+    await tx(async cx => {
+      const d = await editLock(cx,req);
+      if (!(await cx.query("SELECT pin FROM device_pins WHERE device_id=$1 AND pin=$2",[d.id,pin])).rows.length)
+        throw fail(404,"Virtual pin not found.");
+      await requireUnused(cx,d.id,pin);
+      await clearPinBindings(cx,req.user.id,d.id,pin);
+      await cx.query("DELETE FROM device_pins WHERE device_id=$1 AND pin=$2",[d.id,pin]);
+    });
+    events.emit("state",req.params.id);
+    res.json({ok:true});
+  });
   app.post("/api/devices/:id/pins", authenticate, async (req, res) => {
     const p = pinSchema.parse(req.body);
     await tx(async (cx) => {
@@ -124,6 +192,7 @@ export function installPinRoutes(app, { db, tx, authenticate, limit }) {
         [d.id, p.pin, p.label, p.dataType, p.direction, p.unit, p.min, p.max],
       );
     });
+    events.emit("state", req.params.id);
     res.status(201).json({ ok: true });
   });
   app.post(
@@ -176,11 +245,15 @@ export async function syncDevice(tx, token, body) {
       "SELECT * FROM device_pins WHERE device_id=$1",
       [d.id],
     );
+    const acceptedTelemetry = [], ignoredTelemetry = [];
     for (const item of data.telemetry) {
       const pin = pins.find((p) => p.pin === item.pin);
-      if (!pin || pin.direction !== "input")
+      // A deleted demo sensor must not prevent ACK delivery for other outputs.
+      if (!pin) { ignoredTelemetry.push(item.pin); continue; }
+      if (pin.direction !== "input")
         throw fail(400, `Telemetry requires an input pin: ${item.pin}.`);
       checkValue(pin, item.value);
+      acceptedTelemetry.push(item);
     }
     await cx.query(
       `UPDATE device_commands SET status='expired' WHERE device_id=$1 AND status='pending' AND expires_at<=now()`,
@@ -214,7 +287,7 @@ export async function syncDevice(tx, token, body) {
       acknowledged.push(cmd.id);
     }
     // Duplicate ACKs do not reapply a previous state over a newer command.
-    for (const item of data.telemetry) {
+    for (const item of acceptedTelemetry) {
       await cx.query(
         "UPDATE device_pins SET value=$1::jsonb,reported_at=now() WHERE device_id=$2 AND pin=$3",
         [JSON.stringify(item.value), d.id, item.pin],
@@ -235,6 +308,7 @@ export async function syncDevice(tx, token, body) {
       deviceId: d.id,
       acknowledged,
       ignored,
+      ignoredTelemetry,
       commands,
       serverTime: new Date().toISOString(),
     };

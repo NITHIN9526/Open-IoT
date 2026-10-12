@@ -15,7 +15,7 @@ This is a small-installation, trusted-LAN starter. It is not an audited internet
 | Accounts | Registration, login, HttpOnly sessions, password changes, session revocation |
 | Devices | Registration, online/offline status, rename, disable/delete, secure token reveal/rotation |
 | Communication | Embedded Aedes MQTT broker, HTTP simulator, authenticated browser WebSockets |
-| Virtual pins | V0–V31, typed inputs/outputs, bounds, telemetry history, command acknowledgements |
+| Virtual pins | V0–V31, add/edit/remove controls, typed inputs/outputs, bounds, telemetry history, command acknowledgements |
 | Dashboard | Switches, sliders, gauges, values and charts; saved desktop/phone layouts |
 | Automations | Once, daily or weekday schedules with timezones and run history |
 | Rooms & groups | Named collections with device membership |
@@ -193,3 +193,14 @@ See [the voice-control backend guide](docs/VOICE_CONTROL.md) for migration 005,
 HTTPS tunnel setup, developer-console configuration, testing and current limits.
 Voice is disabled by default. Public provider certification and proactive state
 reporting are not included in this backend increment.
+
+## Customize device controls
+
+Open **Devices → your device**. Every pin card has **Edit** and **Remove** buttons, including the default Temperature, Power and Brightness cards. Use **Add virtual pin** for another channel; a Boolean Output gives you ON/OFF controls. The supported range is V0–V31.
+
+- Edit the label or unit without losing state. Changing a pin number, type, direction or range requires a reset confirmation.
+- Resetting clears reported state/readings, cancels pending commands, removes the affected dashboard widgets and removes the device voice mapping if it uses that pin. Renumbering/removing also removes that pin's command history.
+- Schedules, scenes and sensor rules must first be edited or removed if they reference the pin, even when paused. The app identifies them instead of leaving stale actions connected to a new appliance.
+- Removing a control does not turn off the hardware. Match ESP32 firmware to the new configuration; removed-pin telemetry is ignored, but wrong-type or output telemetry for an existing pin is still rejected.
+
+The database schema is unchanged for this update. New devices retain the demo presets for compatibility; you can remove them individually. Existing firmware is not automatically rewritten. See **How to use → Device controls** for details.
