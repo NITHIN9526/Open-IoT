@@ -2,11 +2,34 @@
 
 This archive contains a clean source project, not your running database or private settings. Use this clean folder for first publication rather than uploading the working milestone folder with its .env and backups. Your existing installation can keep running separately.
 
+## Updating the existing Open-IoT repository
+
+For ongoing development, keep the current checkout and its history. Do not run `git init` again. Apply updates on a feature branch, review the changes, and open a pull request.
+
+```powershell
+git status --short
+git switch -c feature/google-assistant-guide
+# Apply the supplied update if it is not already present.
+npm test
+npm run build
+npm run check:release
+git add .
+git diff --cached --stat
+git diff --cached
+npm run check:release
+git commit -m "Add voice integration and Google Assistant setup guide"
+git push -u origin feature/google-assistant-guide
+```
+
+If you already have a feature branch, stay on it and use its actual name when pushing. Review the staged diff before committing; credentials and database files must remain excluded. Open the GitHub pull request targeting `main`, wait for CI, and merge after review. A feature-branch push alone does not change `main`. Do not force-push over unrelated work.
+
+New users can follow [the Google Assistant guide](GOOGLE_ASSISTANT_SETUP.md) after the voice update is merged. The sections below describe first publication only.
+
 ## 1. Prepare the folder
 
 Extract the ZIP and open the inner `open-iot` folder (the one with README.md/package.json). Include dotfiles such as .gitignore and the .github folder. Do not commit node_modules, .env, .device.env, firmware secrets.h, screenshots containing personal information, .pio builds, database dumps or .upgrade-backups.
 
-Review README.md, LICENSE and SECURITY.md. The MIT notice is retained. Add your own author attribution if desired without removing existing notices. The package name remains open-iot-milestone-1 for upgrade compatibility; it need not match the GitHub repository name. No repository URL is hardcoded because your GitHub username/repository has not been supplied.
+Review README.md, LICENSE and SECURITY.md. The MIT notice is retained. Add your own author attribution if desired without removing existing notices. The package name remains open-iot-milestone-1 for upgrade compatibility; it need not match the GitHub repository name. The canonical repository is https://github.com/NITHIN9526/Open-IoT.
 
 ## 2. Validate
 

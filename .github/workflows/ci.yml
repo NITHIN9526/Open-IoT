@@ -32,7 +32,7 @@ jobs:
       - if: matrix.node == '24'
         run: npx playwright install --with-deps chromium --only-shell
       - if: matrix.node == '24'
-        run: node tests/m4-browser-check.mjs && node tests/m5-browser-check.mjs && node tests/manuals-browser-check.mjs
+        run: node tests/m4-browser-check.mjs && node tests/m5-browser-check.mjs && node tests/manuals-browser-check.mjs && node tests/oauth-browser-check.mjs
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 20

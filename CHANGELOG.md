@@ -1,5 +1,12 @@
 # Changelog
 
+## Google Assistant documentation update
+
+- Added a complete self-hosting, Google account-linking and troubleshooting walkthrough.
+- Linked the walkthrough from README and backend documentation.
+- Documented feature-branch publishing to the existing repository.
+- Included the OAuth native-form browser fix and regression check.
+
 ## 5.1.0
 
 - Contextual tab manuals and searchable full guide with examples/troubleshooting.
@@ -27,3 +34,10 @@
 ## 1.0.0
 
 - Landing page, accounts, sessions and token-based device management.
+
+## Unreleased — optional voice backend
+
+- Add migration 005 for OAuth clients, grants, hashed tokens and opt-in voice mappings.
+- Add Google fulfillment and Alexa Smart Home Lambda/Express adapter using existing device commands and ACKs.
+- Add exact redirect checks, consent binding, optional S256 PKCE, grant revocation, provider isolation and retry deduplication.
+- Add voice integration tests and developer setup/operations guide; voice remains disabled by default.
