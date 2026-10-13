@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — editable device controls
+
+- Add Edit and Remove buttons to every V0–V31 pin card, including demo presets.
+- Add authenticated pin update/delete APIs with confirmation, dependency checks, state reset and widget/voice cleanup.
+- Ignore telemetry for absent pins while retaining validation for configured pins.
+- Handle empty devices and removal of the last chartable input; update online and offline manuals.
+
+
 ## Google Assistant documentation update
 
 - Added a complete self-hosting, Google account-linking and troubleshooting walkthrough.

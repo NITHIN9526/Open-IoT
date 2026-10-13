@@ -1713,3 +1713,9 @@ textarea {
     padding: 21px;
   }
 }
+
+.pin-management {display:flex;gap:8px;justify-content:flex-end;margin:8px 0 12px;flex-wrap:wrap;}
+.pin-reset-note {padding:12px;margin:12px 0;border:1px solid #b7bea6;border-radius:10px;background:#f8faf2;font-size:13px;line-height:1.6;}
+.pin-reset-note p {margin:0 0 10px;}
+
+@media(max-width:480px) { .pin-form-grid {grid-template-columns:1fr;} }

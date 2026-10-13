@@ -102,9 +102,16 @@ export function DeviceControl() {
   const { id } = useParams(),
     { state, error, live } = useLiveDevice(id);
   const [adding, setAdding] = useState(false),
-    [selected, setSelected] = useState("V0"),
+    [editing, setEditing] = useState(null),
+    [removing, setRemoving] = useState(null),
+    [selected, setSelected] = useState(""),
     [samples, setSamples] = useState([]),
     [historyError, setHistoryError] = useState("");
+  useEffect(() => {
+    if (!state) return;
+    const sensors = state.pins.filter(p => p.dataType === "number" && p.direction === "input");
+    if (!sensors.some(p => p.pin === selected)) setSelected(sensors[0]?.pin ?? "");
+  }, [state, selected]);
   useEffect(() => {
     let stopped = false,
       busy = false;
@@ -112,7 +119,7 @@ export function DeviceControl() {
     setSamples([]);
     setHistoryError("");
     async function load() {
-      if (busy) return;
+      if (busy || !selected) return;
       busy = true;
       try {
         const result = await api(`/devices/${id}/history?pin=${selected}`, {
@@ -158,7 +165,7 @@ export function DeviceControl() {
           <h1>{state.device.name}</h1>
           <p>Read a signal. Send a command. See it confirmed.</p>
         </div>
-        <button className="btn btn-secondary" onClick={() => setAdding(true)}>
+        <button className="btn btn-secondary" onClick={() => setAdding(true)} disabled={state.pins.length >= 32}>
           <Plus size={17} /> Add virtual pin
         </button>
       </div>
@@ -173,22 +180,25 @@ export function DeviceControl() {
       <ErrorMessage message={error} />
       {state.device.status !== "online" && (
         <p className="control-note">
-          Start <code>npm run simulate</code> in your second terminal to bring
-          this device online. Controls are available when the device connects.
+          Connect your device, or run <code>npm run simulate</code> for a simulator.
+          Output controls are available when it connects. You can edit pins while offline.
         </p>
       )}
+      {!state.pins.length && <p className="control-empty">No virtual pins yet. Add a virtual pin to create a switch or sensor.</p>}
       <div className="pin-grid">
         {state.pins.map((p) => (
           <PinCard
             key={p.pin}
             pin={p}
             id={id}
+            onEdit={() => setEditing(p)}
+            onRemove={() => setRemoving(p)}
             online={state.device.status === "online" && live}
             command={state.commands.find((c) => c.pin === p.pin)}
           />
         ))}
       </div>
-      <section className="device-panel chart-panel">
+      {selected && <section className="device-panel chart-panel">
         <div className="panel-head">
           <div>
             <h2>Signal history</h2>
@@ -219,7 +229,7 @@ export function DeviceControl() {
           unit={pin?.unit ?? ""}
           label={pin?.label ?? selected}
         />
-      </section>
+      </section>}
       <section className="device-panel command-panel">
         <div className="panel-head">
           <div>
@@ -230,7 +240,7 @@ export function DeviceControl() {
         </div>
         {!state.commands.length ? (
           <p className="control-empty">
-            Send your first command using Power or Brightness above.
+            Send a command using an output control above.
           </p>
         ) : (
           <div className="table-scroll">
@@ -270,17 +280,19 @@ export function DeviceControl() {
         )}
       </section>
       <p className="control-footnote">
-        These are virtual channels, not ESP32 GPIO numbers. V0 is simulated
-        temperature; output controls change values inside your laptop simulator.
-        No physical appliance is connected.
+        Virtual pins are software channels, not ESP32 GPIO numbers. Configure
+        your firmware to match each channel. Editing or removing a control does
+        not change GPIO wiring or turn an appliance off.
       </p>
       {adding && (
-        <AddPin id={id} pins={state.pins} onClose={() => setAdding(false)} />
+        <PinEditor id={id} pins={state.pins} onClose={() => setAdding(false)} />
       )}
+      {editing && <PinEditor id={id} pins={state.pins} initial={editing} onClose={() => setEditing(null)} />}
+      {removing && <RemovePin id={id} pin={removing} onClose={() => setRemoving(null)} />}
     </main>
   );
 }
-function PinCard({ pin, id, online, command }) {
+function PinCard({ pin, id, online, command, onEdit, onRemove }) {
   const [draft, setDraft] = useState(pin.value ?? pin.min),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -333,6 +345,10 @@ function PinCard({ pin, id, online, command }) {
         <code>
           {pin.pin} / {pin.direction === "input" ? "SENSOR" : "CONTROL"}
         </code>
+      </div>
+      <div className="pin-management">
+        <button className="btn btn-secondary btn-sm" onClick={onEdit} aria-label={`Edit ${pin.label} ${pin.pin}`}>Edit</button>
+        <button className="btn btn-secondary btn-sm" onClick={onRemove} aria-label={`Remove ${pin.label} ${pin.pin}`}>Remove</button>
       </div>
       <h2>{pin.label}</h2>
       <div className="pin-value" aria-live="polite">
@@ -428,7 +444,7 @@ function SignalChart({ samples, unit, label }) {
       <div className="control-empty chart-empty">
         <Activity size={30} />
         <p>Waiting for {label.toLowerCase()} readings.</p>
-        <small>The simulator sends V0 every two seconds.</small>
+        <small>Readings appear when your device publishes this sensor channel.</small>
       </div>
     );
   const values = samples.map((p) => p.value),
@@ -507,109 +523,81 @@ function SignalChart({ samples, unit, label }) {
     </div>
   );
 }
-function AddPin({ id, pins, onClose }) {
-  const [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
-  const available = Array.from({ length: 32 }, (_, i) => `V${i}`).filter(
-    (p) => !pins.some((x) => x.pin === p),
-  );
+function PinEditor({ id, pins, initial, onClose }) {
+  const [error, setError] = useState(""), [busy, setBusy] = useState(false);
+  const [form, setForm] = useState(initial ? {
+    pin: initial.pin, label: initial.label, dataType: initial.dataType,
+    direction: initial.direction, unit: initial.unit, min: initial.min, max: initial.max,
+  } : { pin: Array.from({length:32},(_,i)=>`V${i}`).find(p=>!pins.some(x=>x.pin===p)) ?? "",
+    label:"", dataType:"boolean", direction:"output", unit:"", min:0, max:100 });
+  const [confirmed, setConfirmed] = useState(false);
+  const available = Array.from({length:32},(_,i)=>`V${i}`).filter(p=>p===initial?.pin || !pins.some(x=>x.pin===p));
+  const reset = !!initial && (form.pin!==initial.pin || form.dataType!==initial.dataType || form.direction!==initial.direction || Number(form.min)!==initial.min || Number(form.max)!==initial.max);
+  function change(e) {
+    const {name,value}=e.target;
+    setForm({...form,[name]:value,...(name==="dataType" && value==="boolean" ? {unit:"",min:0,max:100} : {})});
+    setConfirmed(false);
+  }
   async function submit(e) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    const f = new FormData(e.currentTarget);
+    e.preventDefault(); setBusy(true); setError("");
     try {
-      await api(`/devices/${id}/pins`, {
-        method: "POST",
-        body: {
-          pin: f.get("pin"),
-          label: f.get("label"),
-          dataType: f.get("dataType"),
-          direction: f.get("direction"),
-          unit: f.get("unit"),
-          min: Number(f.get("min")),
-          max: Number(f.get("max")),
-        },
+      await api(`/devices/${id}/pins${initial ? `/${initial.pin}` : ""}`, {
+        method: initial ? "PUT" : "POST",
+        body: {...form, min:Number(form.min), max:Number(form.max), ...(initial ? {confirmReset:reset && confirmed} : {})},
       });
       onClose();
-    } catch (e) {
-      setError(e.message);
-      setBusy(false);
-    }
+    } catch(e) {setError(e.message);setBusy(false);}
   }
-  return (
-    <Modal title="Add virtual pin" onClose={onClose}>
-      <p className="text-muted mb-5">
-        Add a channel from V0–V31. The simulator handles all output pins; custom
-        sensor pins need a client that sends their readings.
-      </p>
-      <form onSubmit={submit}>
-        <ErrorMessage message={error} />
-        <label className="field">
-          <span>Virtual pin</span>
-          <select name="pin">
-            {available.map((p) => (
-              <option key={p}>{p}</option>
-            ))}
-          </select>
-        </label>
-        <Field
-          label="Label"
-          name="label"
-          required
-          maxLength={60}
-          placeholder="e.g. Desk lamp"
-        />
-        <div className="pin-form-grid">
-          <label className="field">
-            <span>Data type</span>
-            <select name="dataType">
-              <option value="boolean">Boolean (ON/OFF)</option>
-              <option value="number">Number</option>
-            </select>
-          </label>
-          <label className="field">
-            <span>Direction</span>
-            <select name="direction">
-              <option value="output">Output — control</option>
-              <option value="input">Input — sensor</option>
-            </select>
-          </label>
-          <Field
-            label="Minimum (numbers)"
-            name="min"
-            type="number"
-            step="any"
-            defaultValue={0}
-            required
-          />
-          <Field
-            label="Maximum (numbers)"
-            name="max"
-            type="number"
-            step="any"
-            defaultValue={100}
-            required
-          />
-        </div>
-        <Field
-          label="Unit (optional)"
-          name="unit"
-          maxLength={12}
-          placeholder="e.g. %"
-        />
-        <p className="text-xs text-muted">
-          Pin type and direction are fixed after creation in this milestone.
-        </p>
-        <div className="modal-actions">
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="btn" disabled={busy || !available.length}>
-            {busy ? "Adding…" : "Add pin"}
-          </button>
-        </div>
-      </form>
-    </Modal>
-  );
+  return <Modal title={initial ? "Edit virtual pin" : "Add virtual pin"} onClose={onClose}>
+    <p className="text-muted mb-5">Choose V0–V31. Use Boolean + Output for an ON/OFF switch. Your firmware must handle the selected pin and type.</p>
+    <form onSubmit={submit}>
+      <ErrorMessage message={error} />
+      <label className="field"><span>Virtual pin</span><select aria-label="Virtual pin" name="pin" value={form.pin} onChange={change}>
+        {available.map(p=><option key={p}>{p}</option>)}
+      </select></label>
+      <Field label="Label" name="label" required maxLength={60} placeholder="e.g. Bedroom light" value={form.label} onChange={change} />
+      <div className="pin-form-grid">
+        <label className="field"><span>Data type</span><select aria-label="Data type" name="dataType" value={form.dataType} onChange={change}>
+          <option value="boolean">Boolean (ON/OFF)</option><option value="number">Number</option>
+        </select></label>
+        <label className="field"><span>Direction</span><select aria-label="Direction" name="direction" value={form.direction} onChange={change}>
+          <option value="output">Output — control</option><option value="input">Input — sensor</option>
+        </select></label>
+        {form.dataType === "number" && <>
+          <Field label="Minimum (numbers)" name="min" type="number" step="any" required value={form.min} onChange={change} />
+          <Field label="Maximum (numbers)" name="max" type="number" step="any" required value={form.max} onChange={change} />
+        </>}
+      </div>
+      <Field label="Unit (optional)" name="unit" maxLength={12} value={form.unit} onChange={change} />
+      {reset && <div className="pin-reset-note">
+        <p>Changing the pin, type, direction or range clears its reported value and readings, cancels pending commands, removes its dashboard widgets, and disconnects this device's voice mapping if it uses this pin. Renumbering also removes this pin's command history.</p>
+        <p>First edit or remove schedules, scenes and sensor rules that use this pin. Update your firmware before using the new configuration, then recreate widgets and voice mappings as needed.</p>
+        <label><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)} /> I understand and want to reset this pin</label>
+      </div>}
+      <div className="modal-actions">
+        <button type="button" className="btn btn-secondary" onClick={onClose} disabled={busy}>Cancel</button>
+        <button className="btn" disabled={busy || !available.length || (reset && !confirmed)}>{busy ? "Saving…" : initial ? "Save changes" : "Add pin"}</button>
+      </div>
+    </form>
+  </Modal>;
+}
+function RemovePin({id,pin,onClose}) {
+  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[confirmed,setConfirmed]=useState(false);
+  async function remove(e) {
+    e.preventDefault();setBusy(true);setError("");
+    try {await api(`/devices/${id}/pins/${pin.pin}`,{method:"DELETE",body:{confirm:true}});onClose();}
+    catch(e){setError(e.message);setBusy(false);}
+  }
+  return <Modal title={`Remove ${pin.label} (${pin.pin})?`} onClose={onClose}>
+    <form onSubmit={remove}>
+      <ErrorMessage message={error} />
+      <p>This permanently removes this pin, its readings, command history and dashboard widgets. Its device voice mapping is removed if it uses this pin. Edit or remove schedules, scenes and sensor rules that reference it first.</p>
+      <p className="pin-reset-note">Removing a control does not turn the physical output off. Turn it off first if needed. Update firmware to stop reporting the removed channel; unknown telemetry is ignored. You can add the pin again later, but its history will not return.</p>
+      <label><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)} /> Remove this pin and its stored data</label>
+      <div className="modal-actions">
+        <button type="button" className="btn btn-secondary" disabled={busy} onClick={onClose}>Cancel</button>
+        <button className="btn" disabled={busy || !confirmed}>{busy ? "Removing…" : "Remove pin"}</button>
+      </div>
+    </form>
+  </Modal>;
 }

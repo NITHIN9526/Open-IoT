@@ -301,3 +301,88 @@ test("WebSocket origin/session/ownership checks and live session revocation", as
     await f.close();
   }
 });
+
+test("pin editing validates ownership, confirmation and metadata while preserving label-only state", async () => {
+  const f = await fixture();
+  try {
+    await f.sync({telemetry:[{pin:"V0",value:24}]});
+    const path=`/devices/${f.id}/pins/V0`;
+    const config={pin:"V0",label:"Room temperature",dataType:"number",direction:"input",unit:"°C",min:-40,max:125};
+    assert.equal((await f.b.call(path,"PUT",config)).status,404);
+    assert.equal((await f.a.call(path,"PUT",config,{"X-CSRF-Token":""})).status,403);
+    assert.equal((await f.a.call(path,"PUT",{...config,pin:"V32"})).status,400);
+    assert.equal((await f.a.call(path,"PUT",{...config,min:125})).status,400);
+    assert.equal((await f.a.call(path,"PUT",{...config,unexpected:true})).status,400);
+    assert.equal((await f.a.call(path,"PUT",config)).status,200);
+    let state=(await f.a.call(`/devices/${f.id}/state`)).body;
+    assert.equal(state.pins[0].value,24);
+    assert.equal(state.pins[0].label,"Room temperature");
+    assert.equal((await f.a.call(path,"PUT",{...config,pin:"V1",confirmReset:true})).status,409);
+    assert.equal((await f.a.call(path,"PUT",{...config,pin:"V31"})).status,400);
+    assert.equal((await f.a.call(path,"PUT",{...config,pin:"V31",confirmReset:true})).status,200);
+    state=(await f.a.call(`/devices/${f.id}/state`)).body;
+    assert.equal(state.pins.some(p=>p.pin==="V0"),false);
+    assert.equal(state.pins.find(p=>p.pin==="V31").value,null);
+    assert.equal((await f.a.call(`/devices/${f.id}/history?pin=V0`)).body.samples.length,0);
+    assert.equal((await f.a.call(path,"DELETE",{confirm:true})).status,404);
+  } finally {await f.close();}
+});
+
+test("repurposing cancels pending ACKs, removes incompatible widgets/voice, and deletion permits healthy sync", async () => {
+  const f=await fixture();
+  try {
+    await f.sync();
+    const cid=(await f.send("V2",40)).body.command.id;
+    const uid=(await f.db.query("SELECT user_id FROM devices WHERE id=$1",[f.id])).rows[0].user_id;
+    await f.db.query("INSERT INTO dashboards(user_id) VALUES($1)",[uid]);
+    await f.db.query(`INSERT INTO dashboard_widgets(id,user_id,device_id,pin,kind,label,config,layouts,sort_order)
+      VALUES($1,$2,$3,'V2','slider','Brightness','{}','{}',0)`,[randomUUID(),uid,f.id]);
+    await f.db.query("INSERT INTO voice_devices(device_id,power_pin,brightness_pin,token_version) VALUES($1,'V1','V2',1)",[f.id]);
+    const config={pin:"V2",label:"Kitchen light",dataType:"boolean",direction:"output",min:0,max:100,confirmReset:true};
+    assert.equal((await f.a.call(`/devices/${f.id}/pins/V2`,"PUT",config)).status,200);
+    assert.equal((await f.db.query("SELECT * FROM voice_devices WHERE device_id=$1",[f.id])).rows.length,0);
+    assert.equal((await f.db.query("SELECT * FROM dashboard_widgets WHERE device_id=$1",[f.id])).rows.length,0);
+    assert.equal((await f.db.query("SELECT version FROM dashboards WHERE user_id=$1",[uid])).rows[0].version,1);
+    assert.deepEqual((await f.sync({acknowledgements:[{id:cid,value:40}]})).body.ignored,[cid]);
+    const pin=(await f.a.call(`/devices/${f.id}/state`)).body.pins.find(p=>p.pin==="V2");
+    assert.equal(pin.value,null);assert.equal(pin.dataType,"boolean");
+    assert.equal((await f.b.call(`/devices/${f.id}/pins/V0`,"DELETE",{confirm:true})).status,404);
+    assert.equal((await f.a.call(`/devices/${f.id}/pins/V0`,"DELETE",{confirm:true},{"X-CSRF-Token":""})).status,403);
+    assert.equal((await f.a.call(`/devices/${f.id}/pins/V0`,"DELETE",{})).status,400);
+    assert.equal((await f.a.call(`/devices/${f.id}/pins/V0`,"DELETE",{confirm:true})).status,200);
+    const newCommand=(await f.send("V2",true)).body.command.id;
+    const synced=await f.sync({telemetry:[{pin:"V0",value:25}],acknowledgements:[{id:newCommand,value:true}]});
+    assert.equal(synced.status,200);assert.deepEqual(synced.body.ignoredTelemetry,["V0"]);
+    assert.deepEqual(synced.body.acknowledged,[newCommand]);
+    for(const pin of ["V1","V2"]) assert.equal((await f.a.call(`/devices/${f.id}/pins/${pin}`,"DELETE",{confirm:true})).status,200);
+    assert.equal((await f.a.call(`/devices/${f.id}/state`)).body.pins.length,0);
+    assert.equal((await f.a.call(`/devices/${f.id}/pins`,"POST",{pin:"V0",label:"New light",dataType:"boolean",direction:"output"})).status,201);
+    assert.equal((await f.a.call(`/devices/${f.id}/state`)).body.pins[0].value,null);
+  } finally {await f.close();}
+});
+
+test("pin structural changes cannot orphan schedules, scenes or sensor rules, including paused references",async()=>{
+  const f=await fixture();
+  try {
+    const uid=(await f.db.query("SELECT user_id FROM devices WHERE id=$1",[f.id])).rows[0].user_id;
+    const action=JSON.stringify([{deviceId:f.id,pin:"V1",value:true,tokenVersion:1}]);
+    const sid=randomUUID(),rid=randomUUID(),aid=randomUUID();
+    await f.db.query("INSERT INTO scenes(id,user_id,name,actions) VALUES($1,$2,'Evening',$3::jsonb)",[sid,uid,action]);
+    await f.db.query(`INSERT INTO sensor_rules(id,user_id,name,source_device,source_pin,source_token_version,operator,threshold,hysteresis,cooldown,actions,enabled)
+      VALUES($1,$2,'Heat rule',$3,'V0',1,'above',30,2,10,$4::jsonb,false)`,[rid,uid,f.id,action]);
+    await f.db.query(`INSERT INTO automations(id,user_id,device_id,pin,name,value,timezone,schedule,token_version,enabled)
+      VALUES($1,$2,$3,'V1','Night schedule','true','UTC','{}',1,false)`,[aid,uid,f.id]);
+    const path=`/devices/${f.id}/pins/V1`;
+    const del=await f.a.call(path,"DELETE",{confirm:true});
+    assert.equal(del.status,409);
+    for(const name of ['Evening','Heat rule','Night schedule']) assert.ok(del.body.error.includes(name));
+    assert.equal((await f.a.call(path,"PUT",{pin:"V3",label:"Light",dataType:"boolean",direction:"output",confirmReset:true})).status,409);
+    // Label-only changes do not break any reference.
+    assert.equal((await f.a.call(path,"PUT",{pin:"V1",label:"Bedroom light",dataType:"boolean",direction:"output"})).status,200);
+    assert.equal((await f.a.call(`/devices/${f.id}/pins/V0`,"DELETE",{confirm:true})).status,409);
+    await f.db.query("DELETE FROM scenes WHERE id=$1",[sid]);
+    await f.db.query("DELETE FROM sensor_rules WHERE id=$1",[rid]);
+    await f.db.query("DELETE FROM automations WHERE id=$1",[aid]);
+    assert.equal((await f.a.call(path,"DELETE",{confirm:true})).status,200);
+  } finally {await f.close();}
+});
