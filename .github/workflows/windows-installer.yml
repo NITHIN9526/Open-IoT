@@ -1,12 +1,13 @@
 name: Windows installer candidate
 on:
-  push:
-    branches: [feature/windows-server]
   pull_request:
-    paths: ['installer/**', 'server/**', 'sql/**', 'package*.json', 'web/**', '.github/workflows/windows-installer.yml']
+    paths: ['installer/**', 'server/**', 'sql/**', 'package*.json', 'web/**', 'tests/desktop*', '.github/workflows/windows-installer.yml']
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: windows-installer-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   installer:
     runs-on: windows-2022

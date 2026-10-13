@@ -137,8 +137,9 @@ export async function startInstalledServer({ root, dataDir }) {
         const dump = join(folder, "database.dump");
         if (manifest.version !== 1 || manifest.id !== id || manifest.keySha256 !== digest(config.encryptionKey) || manifest.databaseSha256 !== digest(await readFile(dump))) throw Error("Backup integrity or installation key mismatch.");
         if (!Array.isArray(manifest.migrations)) throw Error("Backup schema metadata is missing.");
+        const installedMigrations = new Set(await readdir(join(root, "sql")));
         for (const migration of manifest.migrations) {
-          if (!/^[0-9]+_[a-zA-Z0-9_-]+\.sql$/.test(migration.name)) throw Error("Invalid backup migration.");
+          if (!installedMigrations.has(migration.name)) throw Error("Backup requires a different server version.");
           if (digest(await readFile(join(root, "sql", migration.name))) !== migration.checksum) throw Error("Backup requires a different server version.");
         }
         await pg("pg_restore", ["--list", dump]);
