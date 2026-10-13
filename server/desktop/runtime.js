@@ -160,7 +160,10 @@ export async function startInstalledServer({ root, dataDir }) {
     console.log(`Open IoT Server ready. Local administration: ${managementOrigin}`);
     for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, () => void stop());
   } catch (error) {
-    console.error("Installed server startup failed:", error.code ?? error.name, "Check the service and PostgreSQL logs.");
+    let detail = String(error.stderr || error.message || error.name);
+    for (const secret of [config.managementToken, config.postgresPassword, config.databasePassword, config.encryptionKey]) detail = detail.replaceAll(secret, "[redacted]");
+    console.error("Installed server startup failed:", error.code ?? error.name, detail);
+
     await stop(1);
   }
 }

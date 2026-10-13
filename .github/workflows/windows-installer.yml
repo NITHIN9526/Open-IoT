@@ -69,14 +69,21 @@ jobs:
           name: OpenIoT-Windows-x64-candidate
           path: installer/windows/output/*
           retention-days: 14
+      - name: Collect diagnostic logs on failure
+        if: failure()
+        run: |
+          New-Item -ItemType Directory diagnostics -Force | Out-Null
+          foreach ($pattern in @('install.log','upgrade.log',"$env:ProgramData\OpenIoT\logs\*.log","$env:ProgramData\OpenIoT\postgres\log\*.log")) {
+            Get-ChildItem $pattern -ErrorAction SilentlyContinue | ForEach-Object {
+              Copy-Item $_.FullName diagnostics
+              Write-Output $_.Name
+              Get-Content $_.FullName -Tail 60
+            }
+          }
       - name: Upload diagnostic logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: windows-installer-diagnostics
-          path: |
-            install.log
-            upgrade.log
-            C:/ProgramData/OpenIoT/logs/*.log
-            C:/ProgramData/OpenIoT/postgres/log/*.log
+          path: diagnostics/*.log
           retention-days: 3
