@@ -4,6 +4,8 @@ COPY package*.json ./
 COPY web/package.json ./web/package.json
 RUN npm ci
 COPY web ./web
+COPY firmware/esp32-relays/src ./firmware/esp32-relays/src
+COPY firmware/esp32-relays/platformio.ini ./firmware/esp32-relays/platformio.ini
 RUN npm run build
 RUN npm prune --omit=dev
 FROM node:24-alpine
