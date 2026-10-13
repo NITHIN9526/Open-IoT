@@ -1,4 +1,4 @@
-import { execFile, fork } from "node:child_process";
+import { execFile, fork, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { once } from "node:events";
 import { readFile, writeFile, mkdir, rm, readdir, rename } from "node:fs/promises";
@@ -16,9 +16,21 @@ export async function startInstalledServer({ root, dataDir }) {
   let config = await loadConfig(dataDir);
   const pgBin = join(root, "runtime", "pgsql", "bin");
   const cluster = join(dataDir, "postgres");
-  const pg = (name, args, options = {}) => execute(join(pgBin, name + ".exe"), args, {
-    windowsHide: true, timeout: 120000, maxBuffer: 4 * 1024 * 1024, ...options,
-  });
+  const pg = (name, args, options = {}) => {
+    const executable = join(pgBin, name + ".exe");
+    if (name !== "pg_ctl") return execute(executable, args, {
+      windowsHide: true, timeout: 120000, maxBuffer: 4 * 1024 * 1024, ...options,
+    });
+    // PostgreSQL descendants may retain inherited Windows handles after pg_ctl
+    // exits. execFile waits for captured pipes to close, indefinitely delaying
+    // startup. Inherit the service log handles and wait for the controller exit.
+    return new Promise((resolve, reject) => {
+      const command = spawn(executable, args, { windowsHide: true, stdio: ["ignore", "inherit", "inherit"] });
+      const timer = setTimeout(() => { command.kill(); reject(Error("pg_ctl timed out. See service logs.")); }, 90000);
+      command.once("error", error => { clearTimeout(timer); reject(error); });
+      command.once("exit", code => { clearTimeout(timer); code === 0 ? resolve() : reject(Error(`pg_ctl exited with code ${code}. See service logs.`)); });
+    });
+  };
   let child, manager, db, stopping = false, intentionalStop = false, starting = false;
   let ownsPostgres = false;
   async function stopApp() {
@@ -78,6 +90,7 @@ export async function startInstalledServer({ root, dataDir }) {
     try { await pg("pg_ctl", ["-D", cluster, "status"]); running = true; } catch { /* start below */ }
     if (!running) await pg("pg_ctl", ["-D", cluster, "-l", join(dataDir, "logs", "postgres-startup.log"), "-w", "-t", "60", "-o", "-h 127.0.0.1 -p 5440 -c logging_collector=on -c log_rotation_age=1d -c log_truncate_on_rotation=on -c log_filename=postgres-%a.log", "start"]);
     ownsPostgres = true;
+    console.log("Dedicated PostgreSQL server is ready.");
     const admin = new Pool({ host: "127.0.0.1", port: 5440, user: "openiot_admin", password: config.postgresPassword, database: "postgres", connectionTimeoutMillis: 5000 });
     try {
       if (!(await admin.query("SELECT 1 FROM pg_roles WHERE rolname='openiot'")).rows.length) {
@@ -87,6 +100,7 @@ export async function startInstalledServer({ root, dataDir }) {
       if (!(await admin.query("SELECT 1 FROM pg_database WHERE datname='openiot'")).rows.length) await admin.query("CREATE DATABASE openiot OWNER openiot");
     } finally { await admin.end(); }
     await execute(process.execPath, [join(root, "scripts", "migrate.js")], { cwd: root, env: appEnvironment(config), windowsHide: true, timeout: 120000 });
+    console.log("Database migrations completed.");
     db = new Pool({ connectionString: databaseUrl(config), connectionTimeoutMillis: 5000 });
     db.on("error", error => console.error("Management database error:", error.code));
     const backupRoot = join(dataDir, "backups");
