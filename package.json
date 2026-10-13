@@ -17,7 +17,7 @@
     "build": "npm run build --workspace web",
     "simulate": "node --env-file-if-exists=.device.env scripts/simulator.js",
     "test": "node --test tests/*.test.js",
-    "test:browser": "npm run build && node tests/m4-browser-check.mjs && node tests/m5-browser-check.mjs && node tests/manuals-browser-check.mjs",
+    "test:browser": "npm run build && node tests/m4-browser-check.mjs && node tests/m5-browser-check.mjs && node tests/manuals-browser-check.mjs && node tests/oauth-browser-check.mjs && node tests/pin-editor-browser-check.mjs",
     "check:release": "node scripts/check-release.mjs",
     "docs:manual": "node scripts/generate-manual.mjs"
   },

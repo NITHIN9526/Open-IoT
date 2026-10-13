@@ -28,10 +28,16 @@ export const manuals = [
  'Read V0 temperature and its history. Values and timestamps show the latest reported data.',
  'For V1 Power, click ON or OFF once and wait for Device confirmed.',
  'For V2 Brightness, move the slider and click Apply brightness. Wait for confirmation before sending another value.',
- 'Use Add virtual pin only when your firmware implements that channel. Choose a V0–V31 name, label, data type, direction, bounds and optional unit.'
+ 'Use Add virtual pin when your firmware implements that channel. Choose an unused V0–V31 pin, label, type, direction, bounds and optional unit. Boolean + Output creates an ON/OFF switch.',
+ 'Use Edit on any device control, including Temperature, Power and Brightness. Change the label or unit directly; changing pin number, type, direction or range requires the reset confirmation.',
+ 'Use Remove on a control and confirm to delete that pin and its stored data. You can remove all three demo pins and add your own controls. This does not switch the physical appliance off.'
  ],example:'Set V2 to 40% and apply it, then set V1 ON. The current demo controls the board LED, not a mains appliance.',notes:[
  'Input pins report readings. Output pins receive desired values. Boolean means ON/OFF; Number means a numeric value.',
- 'Adding a pin in the web does not add ESP32 GPIO behavior. Extra channels need firmware changes. Pin type and direction are fixed after creation in this milestone.',
+ 'Adding or editing a virtual pin does not change ESP32 GPIO behavior. Update firmware to use the same pins, types and directions.',
+ 'A configuration reset clears reported state and readings, cancels pending commands, removes that pin’s dashboard widgets and disconnects the device voice mapping if it references the pin. Renumbering or removing a pin also deletes its command history. Label/unit-only edits preserve state and bindings.',
+ 'Edit or remove schedules, scenes and sensor rules that reference a pin before repurposing or removing it. Pausing an automation alone does not release its reference. The error lists the affected items.',
+ 'Recreate removed widgets and voice mappings when needed, then resync or relink Google Home/Alexa. A new virtual pin does not create another voice endpoint automatically.',
+ 'Telemetry for absent pins is ignored so a deleted demo sensor cannot block other command acknowledgements. Existing pins still enforce input direction, value type and range. Update firmware before repurposing V0 as an output.',
  'A pending command expires after about 15 seconds. Confirmed means firmware acknowledged the value, not an independent physical measurement.',
  'Reported values may remain visible while offline. Check the timestamp; a remembered value is not proof of current output state.'
  ],trouble:[['Reconnecting live updates','Open the exact URL in APP_ORIGIN. Check the backend and browser WebSocket error. Reload or sign in again if the session expired.'],['Waiting for device confirmation','Wait for expiry rather than clicking repeatedly. Check ESP32 Serial Monitor for Applied V1/V2 and inspect API errors. Make sure a simulator is not sharing the board token.'],['LED changes but the value does not','Inspect acknowledgements in the Serial Monitor/server logs. Do not rotate the token or reset the database as a first troubleshooting step.']]},
