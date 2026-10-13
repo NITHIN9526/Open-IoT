@@ -204,3 +204,7 @@ Open **Devices → your device**. Every pin card has **Edit** and **Remove** but
 - Removing a control does not turn off the hardware. Match ESP32 firmware to the new configuration; removed-pin telemetry is ignored, but wrong-type or output telemetry for an existing pin is still rejected.
 
 The database schema is unchanged for this update. New devices retain the demo presets for compatibility; you can remove them individually. Existing firmware is not automatically rewritten. See **How to use → Device controls** for details.
+
+## Windows installer candidate
+
+A self-contained Windows server installer is being validated on this branch. It includes automatic service startup, local first-run setup, connection settings, and database backup/restore. See [Windows installation and operation](docs/WINDOWS_INSTALLER.md) for the candidate build, usage, and release limitations. Existing source/Docker installations are not imported automatically.
