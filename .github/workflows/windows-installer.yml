@@ -1,0 +1,81 @@
+name: Windows installer candidate
+on:
+  push:
+    branches: [feature/windows-server]
+  pull_request:
+    paths: ['installer/**', 'server/**', 'sql/**', 'package*.json', 'web/**', '.github/workflows/windows-installer.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  installer:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Build installer
+        run: ./installer/windows/build.ps1
+      - name: Test Node application
+        run: npm test
+      - name: Test setup page in Chromium
+        run: |
+          npx playwright install chromium
+          node tests/desktop-browser-check.mjs
+      - name: Install candidate silently
+        run: |
+          $exe = (Get-ChildItem installer/windows/output/*.exe | Select-Object -First 1).FullName
+          $result = Start-Process $exe -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=install.log' -Wait -PassThru
+          if ($result.ExitCode -notin @(0,3010)) { throw "Installer exit $($result.ExitCode)" }
+      - name: Exercise installed service and restore
+        run: node installer/windows/smoke.mjs
+      - name: Verify service identity and automatic startup
+        run: |
+          $service = Get-CimInstance Win32_Service -Filter "Name='OpenIoT'"
+          if ($service.StartName -ne 'NT AUTHORITY\LocalService' -or $service.StartMode -ne 'Auto') { throw 'Incorrect service identity or startup mode' }
+          $data = Join-Path $env:ProgramData 'OpenIoT'
+          $acl = Get-Acl $data
+          if (-not $acl.AreAccessRulesProtected) { throw 'Data directory must not inherit broad permissions' }
+          $allowed = @('S-1-5-18','S-1-5-19','S-1-5-32-544')
+          foreach ($rule in $acl.Access) {
+            $sid = $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
+            if ($sid -notin $allowed) { throw 'Unexpected data directory ACL' }
+          }
+      - name: Upgrade in place and verify persistence
+        run: |
+          $exe = (Get-ChildItem installer/windows/output/*.exe | Select-Object -First 1).FullName
+          $result = Start-Process $exe -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=upgrade.log' -Wait -PassThru
+          if ($result.ExitCode -notin @(0,3010)) { throw "Upgrade exit $($result.ExitCode)" }
+          node installer/windows/smoke.mjs --preserved
+          if ($LASTEXITCODE -ne 0) { throw 'Persistence check failed' }
+      - name: Uninstall preserves data
+        run: |
+          $uninstaller = Join-Path $env:ProgramFiles 'Open IoT\unins000.exe'
+          $result = Start-Process $uninstaller -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART' -Wait -PassThru
+          if ($result.ExitCode -ne 0) { throw "Uninstall exit $($result.ExitCode)" }
+          if (Get-Service OpenIoT -ErrorAction SilentlyContinue) { throw 'Service still installed' }
+          if (-not (Test-Path "$env:ProgramData\OpenIoT\postgres\PG_VERSION")) { throw 'Database was removed' }
+          if (-not (Test-Path "$env:ProgramData\OpenIoT\config.json")) { throw 'Encryption key was removed' }
+      - name: Upload tested installer candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenIoT-Windows-x64-candidate
+          path: installer/windows/output/*
+          retention-days: 14
+      - name: Upload diagnostic logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer-diagnostics
+          path: |
+            install.log
+            upgrade.log
+            C:/ProgramData/OpenIoT/logs/*.log
+            C:/ProgramData/OpenIoT/postgres/log/*.log
+          retention-days: 3

@@ -36,6 +36,7 @@ export async function createApp({
   disableLimits = false,
   staticDir = resolve("web/dist"),
   voice = null,
+  registrationEnabled = true,
 }) {
   if (!Buffer.isBuffer(encryptionKey) || encryptionKey.length !== 32)
     throw Error("TOKEN_ENCRYPTION_KEY must decode to 32 bytes.");
@@ -153,6 +154,7 @@ export async function createApp({
     res.json({ ok: true });
   });
   app.post("/api/auth/register", authLimit, async (req, res) => {
+    if (!registrationEnabled) throw fail(403, "Public registration is disabled by the server administrator.");
     const data = z
       .object({
         name: nameSchema,

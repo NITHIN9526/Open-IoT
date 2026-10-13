@@ -36,3 +36,8 @@ coverage/
 .DS_Store
 Thumbs.db
 *.zip
+
+# Windows installer staging, vendors, and generated setup executables
+installer/windows/stage/
+installer/windows/vendor/
+installer/windows/output/

@@ -15,6 +15,7 @@ const key = Buffer.from(process.env.TOKEN_ENCRYPTION_KEY ?? "", "base64");
 const origin = process.env.APP_ORIGIN ?? "http://localhost:5173";
 const app = await createApp({
   db,
+  registrationEnabled: process.env.REGISTRATION_ENABLED !== "false",
   encryptionKey: key,
   origin,
   production: process.env.NODE_ENV === "production",
@@ -71,8 +72,10 @@ const cleanup = setInterval(
   3600000,
 );
 cleanup.unref();
-for (const signal of ["SIGTERM", "SIGINT"])
-  process.once(signal, async () => {
+let stopping = false;
+async function shutdown() {
+    if (stopping) return;
+    stopping = true;
     clearInterval(cleanup);
     clearInterval(retention);
     await stopRules();
@@ -81,4 +84,7 @@ for (const signal of ["SIGTERM", "SIGINT"])
     if (mqtt) await mqtt.close();
     server.close(() => db.end().then(() => process.exit(0)));
     setTimeout(() => process.exit(1), 10000).unref();
-  });
+}
+for (const signal of ["SIGTERM", "SIGINT"]) process.once(signal, shutdown);
+// The Windows service supervisor uses IPC because Windows has no POSIX SIGTERM.
+process.on("message", (message) => { if (message === "shutdown") void shutdown(); });
