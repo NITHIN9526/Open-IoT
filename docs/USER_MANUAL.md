@@ -23,14 +23,14 @@ Connect a device, try a control, then make the workspace your own.
 
 1. Create an account with your name, email and a password of at least 12 characters. If you already have an account, log in.
 2. Open Devices and register an ESP32 or Laptop simulator. Save its generated device token privately.
-3. For hardware, use your existing MQTT firmware with the laptop LAN IP, device UUID and token. For a laptop simulator, download Simulator config, place .device.env beside package.json, and run npm run simulate in a second terminal.
+3. For ESP32 switches, use Generate ESP32 code in Getting started. Select your device, map Boolean output pins to GPIOs, enter Wi-Fi and device credentials, then copy the three generated files into PlatformIO and upload. For a laptop simulator, download Simulator config and run npm run simulate.
 4. Keep PostgreSQL and npm run dev running. Wait for Online, open the device, then wait for Live updates connected.
 5. Try Power ON/OFF and brightness. Wait for Device confirmed before sending another command.
 6. Add widgets under My dashboard. Use Automations for a clock time, Scenes for a manual multi-action button, and Sensor rules for a threshold crossing.
 
 **Example**
 
-Your existing Light ESP32 uses V0 for dummy temperature, V1 for power, and V2 for brightness. No new firmware is needed to use these pins with Milestone 5.
+For a two-switch ESP32, create two Boolean output pins, select the device in Generate ESP32 code, assign separate GPIOs, and copy main.cpp, secrets.h and platformio.ini. The generated switch firmware has no simulated temperature or brightness channel.
 
 **Things to know**
 

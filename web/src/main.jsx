@@ -13,6 +13,7 @@ import { DeviceControl } from "./DeviceControl";
 import { Account } from "./Account";
 import { Docs } from "./Docs";
 import "./style.css";
+import "./motion.css";
 function App() {
   return (
     <BrowserRouter>
