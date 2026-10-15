@@ -246,7 +246,16 @@ export function Devices() {
           </button>
         </div>
         {loading ? (
-          <div className="empty-state">Loading your devices…</div>
+          <div className="device-loading" role="status" aria-label="Loading your devices">
+            <span className="sr-only">Loading your devices…</span>
+            {[0, 1, 2].map((row) => (
+              <div className="skeleton-row" key={row} aria-hidden="true">
+                <span className="skeleton skeleton-icon" />
+                <span className="skeleton-lines"><span className="skeleton" /><span className="skeleton" /></span>
+                <span className="skeleton skeleton-badge" />
+              </div>
+            ))}
+          </div>
         ) : data.total === 0 ? (
           <div className="empty-state">
             <div className="empty-art">
