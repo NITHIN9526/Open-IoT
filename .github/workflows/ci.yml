@@ -32,7 +32,7 @@ jobs:
       - if: matrix.node == '24'
         run: npx playwright install --with-deps chromium --only-shell
       - if: matrix.node == '24'
-        run: node tests/m4-browser-check.mjs && node tests/m5-browser-check.mjs && node tests/manuals-browser-check.mjs && node tests/oauth-browser-check.mjs && node tests/pin-editor-browser-check.mjs
+        run: node tests/m4-browser-check.mjs && node tests/m5-browser-check.mjs && node tests/manuals-browser-check.mjs && node tests/oauth-browser-check.mjs && node tests/pin-editor-browser-check.mjs && node tests/firmware-generator-browser-check.mjs
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -51,6 +51,8 @@ jobs:
       - run: pipx install platformio==6.1.18
       - run: cp firmware/esp32/include/secrets.example.h firmware/esp32/include/secrets.h
       - run: platformio run --project-dir firmware/esp32
+      - run: cp firmware/esp32-relays/include/secrets.example.h firmware/esp32-relays/include/secrets.h
+      - run: platformio run --project-dir firmware/esp32-relays
   database:
     runs-on: ubuntu-latest
     timeout-minutes: 15
