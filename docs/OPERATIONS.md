@@ -50,3 +50,25 @@ Telemetry: 24 hours. Finished device commands: seven days. Scene/rule runs: 30 d
 | Old code after update | Restart dev server and hard reload the browser |
 
 Collect redacted API logs and ESP32 Serial Monitor at 115200 baud. Avoid posting .env, secrets.h, token values, cookies or backup files. Do not reset the database/encryption key to fix ordinary network issues.
+
+## One-command local Docker database repair
+
+For `password authentication failed` / `28P01` in the source installation,
+stop the development server, open Docker Desktop, then run from the project root:
+
+```sh
+npm run repair:db
+```
+
+The command starts the Compose database, verifies its local port, checks the
+credentials in `.env`, repairs the `openiot` role password only on an authentication
+failure, verifies the connection again, and applies migrations. It uses the password
+from `DATABASE_URL`. It never deletes a Docker volume or edits `.env` or the encryption
+key. Other clients using an old database password must use the same credentials.
+
+Requires installed npm dependencies and Docker Compose. Only the local
+`openiot_m1` Compose database is supported; the Windows installer's bundled database
+and remote databases are intentionally excluded. Conflicting terminal environment
+variables, custom Compose configurations, or local database authentication changes
+may need manual attention. It does not start the web server: run `npm run dev` after
+success. A healthy Docker container alone does not prove the app password works.

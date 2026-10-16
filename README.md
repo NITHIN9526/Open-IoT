@@ -25,6 +25,20 @@ This is a small-installation, trusted-LAN starter. It is not an audited internet
 
 **Not implemented:** public Google/Alexa certification and proactive state reporting, mobile native app, OTA updates, email/password recovery, MFA, tenant sharing, Redis/TimescaleDB, high-availability deployment or a physical relay driver. The ESP32 sample controls an LED and publishes simulated temperature.
 
+## Choose your installation
+
+**Windows app users:** download the installer from [Releases](https://github.com/NITHIN9526/Open-IoT/releases). It bundles Node.js and PostgreSQL; Docker and the source setup below are not needed. Follow [Windows setup](docs/WINDOWS_INSTALLER.md).
+
+**Source installation:** install Node.js 24 and Docker Desktop (or Docker Engine with Compose), open Docker, then run this single command in the downloaded/cloned project:
+
+```sh
+node scripts/setup-all.mjs
+```
+
+On Windows you can instead double-click **Setup-OpenIoT.cmd**. It checks Docker and application ports, creates `.env` only if missing, installs dependencies, starts PostgreSQL, repairs a local database password mismatch when needed, applies migrations, and starts the dashboard. Existing `.env`, encryption keys and database contents are retained. Internet is needed to download dependencies and the initial PostgreSQL image. Close any installed Open IoT service or other source instance first to avoid port conflicts.
+
+After Vite is ready, open the displayed dashboard URL and create an account. Keep the window open. This prepares the server; ESP32 Wi-Fi credentials, firmware upload, LAN/firewall settings and Google/Alexa linking still need their own setup. The script does not install system prerequisites, modify the firewall, or delete data. To restart later without reinstalling dependencies, use the stop/restart instructions below.
+
 ## Quick start — no hardware needed
 
 ### Requirements
