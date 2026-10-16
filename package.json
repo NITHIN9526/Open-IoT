@@ -11,6 +11,8 @@
   },
   "scripts": {
     "setup": "node scripts/setup.js",
+    "setup:all": "node scripts/setup-all.mjs",
+    "repair:db": "node scripts/repair-db.mjs",
     "migrate": "node --env-file-if-exists=.env scripts/migrate.js",
     "dev": "concurrently -k -n api,web \"node --env-file-if-exists=.env --watch server/index.js\" \"npm run dev --workspace web\"",
     "start": "node --env-file-if-exists=.env server/index.js",
