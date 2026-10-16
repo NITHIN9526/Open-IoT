@@ -41,3 +41,11 @@ Thumbs.db
 installer/windows/stage/
 installer/windows/vendor/
 installer/windows/output/
+
+# Android local SDK, builds and signing material
+android/.gradle/
+android/**/build/
+android/local.properties
+android/*.jks
+android/*.keystore
+android/keystore.properties

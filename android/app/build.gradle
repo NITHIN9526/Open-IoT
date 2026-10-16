@@ -1,0 +1,30 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'io.github.nithin9526.openiot'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'io.github.nithin9526.openiot'
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName '0.1.0'
+    }
+    buildFeatures { buildConfig true }
+    buildTypes {
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-preview'
+            manifestPlaceholders = [cleartextTraffic: 'true', appName: 'Open IoT Preview']
+            buildConfigField 'boolean', 'ALLOW_LOCAL_HTTP', 'true'
+        }
+        release {
+            manifestPlaceholders = [cleartextTraffic: 'false', appName: 'Open IoT']
+            buildConfigField 'boolean', 'ALLOW_LOCAL_HTTP', 'false'
+            minifyEnabled false
+            // Deliberately unsigned. Configure a private upload key before Play submission.
+        }
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    lint { abortOnError true }
+}
+dependencies { testImplementation 'junit:junit:4.13.2' }

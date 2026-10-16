@@ -222,3 +222,7 @@ The database schema is unchanged for this update. New devices retain the demo pr
 ## Windows installer candidate
 
 A self-contained Windows server installer is being validated on this branch. It includes automatic service startup, local first-run setup, connection settings, and database backup/restore. See [Windows installation and operation](docs/WINDOWS_INSTALLER.md) for the candidate build, usage, and release limitations. Existing source/Docker installations are not imported automatically.
+
+## Android companion preview
+
+The initial Android app is in [`android/`](android/README.md). It adds server-address setup, connection checks and a mobile dashboard window for your own Open IoT server. GitHub Actions builds a sideloadable debug APK and an unsigned AAB. The Play release build requires HTTPS; the debug preview also supports explicitly acknowledged private-LAN HTTP. This is a development preview, not a Google Play release. See [release preparation](docs/android/PLAY_RELEASE.md).
