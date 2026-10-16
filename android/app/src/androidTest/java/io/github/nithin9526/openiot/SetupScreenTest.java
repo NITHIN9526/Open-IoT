@@ -18,6 +18,12 @@ public class SetupScreenTest {
     @Test public void setupRequiresValidServerAndExplicitHttpConsent() throws Exception {
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             onView(withText("Check and connect")).check(matches(isDisplayed()));
+            File file = new File(InstrumentationRegistry.getInstrumentation().getTargetContext().getExternalFilesDir(null), "android-setup.png");
+            try (FileOutputStream stream = new FileOutputStream(file)) {
+                Bitmap screenshot = InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();
+                if (screenshot == null) throw new AssertionError("Screenshot not available");
+                screenshot.compress(Bitmap.CompressFormat.PNG,100,stream); screenshot.recycle();
+            }
             onView(withContentDescription("Server address")).perform(replaceText("http://192.168.1.5:3000"),closeSoftKeyboard());
             onView(withText("Check and connect")).perform(click());
             onView(withText("Check the local-network option to acknowledge that HTTP sends passwords and controls without encryption.")).check(matches(isDisplayed()));
@@ -25,12 +31,6 @@ public class SetupScreenTest {
             onView(withText("Check and connect")).perform(click());
             onView(withText("Use the server's network address; localhost means this phone.")).check(matches(isDisplayed()));
             onView(withContentDescription("Server address")).perform(replaceText("https://iot.example.com"),closeSoftKeyboard());
-            File file = new File(InstrumentationRegistry.getInstrumentation().getTargetContext().getExternalFilesDir(null), "android-setup.png");
-            try (FileOutputStream stream = new FileOutputStream(file)) {
-                Bitmap screenshot = InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();
-                if (screenshot == null) throw new AssertionError("Screenshot not available");
-                screenshot.compress(Bitmap.CompressFormat.PNG,100,stream); screenshot.recycle();
-            }
             onView(withText("Privacy & app information")).perform(scrollTo(),click());
             onView(withText("Your connection and data")).check(matches(isDisplayed()));
             onView(withText("Close")).perform(click());

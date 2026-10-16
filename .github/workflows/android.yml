@@ -70,14 +70,13 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: |
-            cd android && gradle --no-daemon :app:connectedDebugAndroidTest
-            adb pull /sdcard/Android/data/io.github.nithin9526.openiot.debug/files/android-setup.png android-setup.png
+          script: bash android/scripts/emulator-check.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: Android-emulator-check
           path: |
             android-setup.png
+            android-emulator.png
             android/app/build/reports/androidTests/
           retention-days: 14
