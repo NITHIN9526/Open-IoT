@@ -64,7 +64,7 @@ jobs:
           if (-not (Test-Path "$env:ProgramData\OpenIoT\postgres\PG_VERSION")) { throw 'Database was removed' }
           if (-not (Test-Path "$env:ProgramData\OpenIoT\config.json")) { throw 'Encryption key was removed' }
       - name: Upload tested installer candidate
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: OpenIoT-Windows-x64-candidate
           path: installer/windows/output/*
@@ -82,7 +82,7 @@ jobs:
           }
       - name: Upload diagnostic logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-installer-diagnostics
           path: diagnostics/*.log
